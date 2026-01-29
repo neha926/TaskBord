@@ -9,7 +9,7 @@
     "server": "nodemon server.js"
   },
   "keywords": [],
-  "author": "",
+  "author": "Neha Team",
   "license": "ISC",
   "description": "",
   "dependencies": {
