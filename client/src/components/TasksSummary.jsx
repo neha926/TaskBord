@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, Clock, AlertTriangle, User } from "lucide-react";
 import { useSelector } from "react-redux";
+import { useUser } from "@clerk/clerk-react";
 
 export default function TasksSummary() {
 
     const { currentWorkspace } = useSelector((state) => state.workspace);
-    const user = { id: 'user_1' }
+    const {user} = useUser();
     const [tasks, setTasks] = useState([]);
 
     // Get all tasks for all projects in current workspace
@@ -46,15 +47,15 @@ export default function TasksSummary() {
     return (
         <div className="space-y-6">
             {summaryCards.map((card) => (
-                <div key={card.title} className="bg-white dark:bg-zinc-950 dark:bg-gradient-to-br dark:from-zinc-800/70 dark:to-zinc-900/50 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all duration-200 rounded-lg overflow-hidden">
-                    <div className="border-b border-zinc-200 dark:border-zinc-800 p-4 pb-3">
+                <div key={card.title} className="bg-white dark:bg-zinc-950 dark:bg-gradient-to-br dark:from-zinc-800/70 dark:to-zinc-900/50 border border-purple-200 dark:border-purple-500/20 hover:border-purple-400 dark:hover:border-purple-400/60 transition-all duration-300 rounded-xl overflow-hidden shadow-sm hover:shadow-xl hover:shadow-purple-500/5" >
+                    <div className="border-b border-zinc-200 dark:border-zinc-800 p-5 bg-zinc-50/30 dark:bg-zinc-900/20" >
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
-                                <card.icon className="w-4 h-4 text-gray-500 dark:text-zinc-400" />
+                            <div className={`p-2 rounded-lg ${card.color.split(' ')[0]} bg-opacity-20 transition-transform duration-300 group-hover:scale-110`} >
+                                <card.icon className="w-4 h-4" />
                             </div>
                             <div className="flex items-center justify-between flex-1">
-                                <h3 className="text-sm font-medium text-gray-800 dark:text-white">{card.title}</h3>
-                                <span className={`inline-block mt-1 px-2 py-1 rounded text-xs font-semibold ${card.color}`}>
+                                <h3 className="text-sm font-semibold text-gray-800 dark:text-zinc-200">{card.title}</h3>
+                                <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm ${card.color}`}>
                                     {card.count}
                                 </span>
                             </div>

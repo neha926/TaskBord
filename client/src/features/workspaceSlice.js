@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk} from "@reduxjs/toolkit";
 import api from "../configs/api";
+import toast from "react-hot-toast";
 
 export const fetchWorkspaces = createAsyncThunk('workspace/fetchworkspaces', async({getToken})=>{
     try {
@@ -11,7 +12,32 @@ export const fetchWorkspaces = createAsyncThunk('workspace/fetchworkspaces', asy
         console.log(error?.response?.data?.message || error.message);
         return []
     }
+})
 
+// Silent fetch for real-time polling without loading spinner
+export const refreshWorkspaces = createAsyncThunk('workspace/refreshWorkspaces', async({getToken})=>{
+    try {
+        const{data}= await api.get('/api/workspaces',{headers: {
+            Authorization:`Bearer ${await getToken()}`}})
+            return data.workspaces || []
+        
+    } catch (error) {
+        console.log(error?.response?.data?.message || error.message);
+        return []
+    }
+})
+
+export const deleteWorkspaceThunk = createAsyncThunk('workspace/deleteWorkspace', async({id, getToken}, {dispatch})=>{
+    try {
+        const{data}= await api.delete(`/api/workspaces/${id}`,{headers: {
+            Authorization:`Bearer ${await getToken()}`}})
+            dispatch(deleteWorkspace(id));
+            toast.success(data.message);
+            return id;
+    } catch (error) {
+        toast.error(error?.response?.data?.message || error.message);
+        throw error;
+    }
 })
 
 
@@ -51,7 +77,7 @@ const workspaceSlice = createSlice({
             }
         },
         deleteWorkspace: (state, action) => {
-            state.workspaces = state.workspaces.filter((w) => w._id !== action.payload);
+            state.workspaces = state.workspaces.filter((w) => w.id !== action.payload);
         },
         addProject: (state, action) => {
             state.currentWorkspace.projects.push(action.payload);
@@ -101,20 +127,22 @@ const workspaceSlice = createSlice({
             );
         },
         deleteTask: (state, action) => {
-            state.currentWorkspace.projects.map((p) => {
-                p.tasks = p.tasks.filter((t) => !action.payload.includes(t.id));
-                return p;
+            const idsToDelete = Array.isArray(action.payload) ? action.payload : [action.payload];
+            // remove from current workspace projects
+            state.currentWorkspace.projects.forEach((p) => {
+                p.tasks = p.tasks.filter((t) => !idsToDelete.includes(t.id));
             });
-            // find workspace and project by id and delete task from it
-            state.workspaces = state.workspaces.map((w) =>
-                w.id === state.currentWorkspace.id ? {
-                    ...w, projects: w.projects.map((p) =>
-                        p.id === action.payload.projectId ? {
-                            ...p, tasks: p.tasks.filter((t) => !action.payload.includes(t.id))
-                        } : p
-                    )
-                } : w
-            );
+            // remove from workspaces list for the current workspace
+            state.workspaces = state.workspaces.map((w) => {
+                if (w.id !== state.currentWorkspace.id) return w;
+                return {
+                    ...w,
+                    projects: w.projects.map((p) => ({
+                        ...p,
+                        tasks: p.tasks.filter((t) => !idsToDelete.includes(t.id)),
+                    })),
+                };
+            });
         }
 
     },
@@ -141,6 +169,23 @@ const workspaceSlice = createSlice({
         })
         builder.addCase(fetchWorkspaces.rejected, (state)=>{
             state.loading=false;
+        });
+
+        builder.addCase(refreshWorkspaces.fulfilled, (state,action)=>{
+            state.workspaces=action.payload;
+            if(action.payload.length>0){
+                const localStroageCurrentWorkspaceId = localStorage.getItem('currentWorkspaceId');
+                if(localStroageCurrentWorkspaceId){
+                    const findWorkspace = action.payload.find((w)=> w.id === localStroageCurrentWorkspaceId);
+                    if(findWorkspace){
+                        state.currentWorkspace=findWorkspace
+                    }else {
+                         state.currentWorkspace=action.payload[0]
+                    }
+                }else{
+                    state.currentWorkspace = action.payload[0]
+                }
+            }
         });
 
     }

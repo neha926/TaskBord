@@ -1,24 +1,62 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Mail, UserPlus } from "lucide-react";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { useSearchParams } from "react-router-dom";
+import { useAuth, useUser } from "@clerk/clerk-react";
+import toast from "react-hot-toast";
+import { fetchWorkspaces } from "../features/workspaceSlice";
+import api from "../configs/api";
 
 const AddProjectMember = ({ isDialogOpen, setIsDialogOpen }) => {
 
     const [searchParams] = useSearchParams();
 
     const id = searchParams.get('id');
+    const {getToken} =useAuth();
+    const { user: currentUser } = useUser();
+    const dispatch=useDispatch();
 
     const currentWorkspace = useSelector((state) => state.workspace?.currentWorkspace || null);
 
     const project = currentWorkspace?.projects.find((p) => p.id === id);
     const projectMembersEmails = project?.members.map((member) => member.user.email);
 
+    // Hierarchy Filter: Only show members who are NOT Admins if current user is not an Admin
+    const eligibleMembers = useMemo(() => {
+        if (!currentWorkspace) return [];
+        
+        const currentUserWorkspaceMember = currentWorkspace.members.find(m => m.userId === currentUser?.id);
+        const isCurrentUserAdmin = currentUserWorkspaceMember?.role === "ADMIN" || currentWorkspace.ownerId === currentUser?.id;
+
+        const members = currentWorkspace.members.filter((member) => !projectMembersEmails.includes(member.user.email));
+
+        if (isCurrentUserAdmin) return members;
+
+        // If not Admin, filter out Admins from the list
+        return members.filter(member => {
+            const isMemberAdmin = member.role === "ADMIN" || currentWorkspace.ownerId === member.userId;
+            return !isMemberAdmin;
+        });
+    }, [currentWorkspace, currentUser, projectMembersEmails]);
+
     const [email, setEmail] = useState('');
     const [isAdding, setIsAdding] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setIsAdding(true);
+        // toast.loading("Adding member ...");
+        try {
+            const {data}=await api.post(`/api/projects/${project.id}/addMember`,{email},{headers:{Authorization:`Bearer ${await getToken()}`}});
+            toast.success(data.message);
+            setIsDialogOpen(false);
+            dispatch(fetchWorkspaces({getToken}));
+        } catch (error) {
+            toast.error(error.response?.data?.message || error.message || "An error occurred while saving.");
+        }
+        finally {
+            setIsAdding(false);
+        }
         
     };
 
@@ -50,12 +88,10 @@ const AddProjectMember = ({ isDialogOpen, setIsDialogOpen }) => {
                             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 dark:text-zinc-400 w-4 h-4" />
                             {/* List All non project members from current workspace */}
                             <select value={email} onChange={(e) => setEmail(e.target.value)} className="pl-10 mt-1 w-full rounded border border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-200 text-sm placeholder-zinc-400 dark:placeholder-zinc-500 py-2 focus:outline-none focus:border-blue-500" required >
-                                <option value="">Select a member</option>
-                                {currentWorkspace?.members
-                                    .filter((member) => !projectMembersEmails.includes(member.user.email))
-                                    .map((member) => (
-                                        <option key={member.user.id} value={member.user.email}> {member.user.email} </option>
-                                    ))}
+                                <option value="" className="bg-white dark:bg-zinc-900">Select a member</option>
+                                {eligibleMembers.map((member) => (
+                                    <option key={member.user.id} value={member.user.email} className="bg-white dark:bg-zinc-900"> {member.user.email} </option>
+                                ))}
                             </select>
                         </div>
                     </div>

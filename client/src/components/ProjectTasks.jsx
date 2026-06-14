@@ -4,7 +4,9 @@ import { useDispatch } from "react-redux";
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { deleteTask, updateTask } from "../features/workspaceSlice";
-import { Bug, CalendarIcon, GitCommit, MessageSquare, Square, Trash, XIcon, Zap } from "lucide-react";
+import { Bug, CalendarIcon, GitCommit, MessageSquare, Square, Trash, XIcon, Zap, Info } from "lucide-react";
+import { useAuth } from "@clerk/clerk-react";
+import api from "../configs/api";
 
 const typeIcons = {
     BUG: { icon: Bug, color: "text-red-600 dark:text-red-400" },
@@ -21,6 +23,7 @@ const priorityTexts = {
 };
 
 const ProjectTasks = ({ tasks }) => {
+    const {getToken}=useAuth();
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const [selectedTasks, setSelectedTasks] = useState([]);
@@ -57,9 +60,11 @@ const ProjectTasks = ({ tasks }) => {
     const handleStatusChange = async (taskId, newStatus) => {
         try {
             toast.loading("Updating status...");
+            const token = await getToken();
 
-            //  Simulate API call
-            await new Promise((resolve) => setTimeout(resolve, 2000));
+            await api.put(`/api/tasks/${taskId}`, { status: newStatus }, { 
+                headers: { Authorization: `Bearer ${token}` } 
+            });
 
             let updatedTask = structuredClone(tasks.find((t) => t.id === taskId));
             updatedTask.status = newStatus;
@@ -74,16 +79,24 @@ const ProjectTasks = ({ tasks }) => {
     };
 
     const handleDelete = async () => {
+        if (selectedTasks.length === 0) {
+            toast.error("Please select tasks to delete");
+            return;
+        }
+
         try {
-            const confirm = window.confirm("Are you sure you want to delete the selected tasks?");
+            const confirm = window.confirm(`Are you sure you want to delete ${selectedTasks.length} selected task(s)?`);
             if (!confirm) return;
+            const token = await getToken();
 
             toast.loading("Deleting tasks...");
 
-            //  Simulate API call
-            await new Promise((resolve) => setTimeout(resolve, 2000));
+            await api.post(`/api/tasks/delete`, { taskIds: selectedTasks }, { 
+                headers: { Authorization: `Bearer ${token}` } 
+            });
 
             dispatch(deleteTask(selectedTasks));
+            setSelectedTasks([]); // Clear selection after delete
 
             toast.dismissAll();
             toast.success("Tasks deleted successfully");
@@ -95,6 +108,14 @@ const ProjectTasks = ({ tasks }) => {
 
     return (
         <div>
+            {/* Professional Note */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 flex items-start gap-3 mb-6">
+                <Info className="size-5 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+                <p className="text-sm text-blue-800 dark:text-blue-300">
+                    <strong>Professional Note:</strong> If a task is reopened (changed from Done to In Progress or To Do), it will affect your performance score.
+                </p>
+            </div>
+
             {/* Filters */}
             <div className="flex flex-wrap gap-4 mb-4">
                 {["status", "type", "priority", "assignee"].map((name) => {
@@ -125,9 +146,9 @@ const ProjectTasks = ({ tasks }) => {
                         ],
                     };
                     return (
-                        <select key={name} name={name} onChange={handleFilterChange} className=" border not-dark:bg-white border-zinc-300 dark:border-zinc-800 outline-none px-3 py-1 rounded text-sm text-zinc-900 dark:text-zinc-200" >
+                        <select key={name} name={name} onChange={handleFilterChange} className=" border not-dark:bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-800 outline-none px-3 py-1 rounded text-sm text-zinc-900 dark:text-zinc-200" >
                             {options[name].map((opt, idx) => (
-                                <option key={idx} value={opt.value}>{opt.label}</option>
+                                <option key={idx} value={opt.value} className="bg-white dark:bg-zinc-900">{opt.label}</option>
                             ))}
                         </select>
                     );
@@ -190,10 +211,10 @@ const ProjectTasks = ({ tasks }) => {
                                                     </span>
                                                 </td>
                                                 <td onClick={e => e.stopPropagation()} className="px-4 py-2">
-                                                    <select name="status" onChange={(e) => handleStatusChange(task.id, e.target.value)} value={task.status} className="group-hover:ring ring-zinc-100 outline-none px-2 pr-4 py-1 rounded text-sm text-zinc-900 dark:text-zinc-200 cursor-pointer" >
-                                                        <option value="TODO">To Do</option>
-                                                        <option value="IN_PROGRESS">In Progress</option>
-                                                        <option value="DONE">Done</option>
+                                                    <select name="status" onChange={(e) => handleStatusChange(task.id, e.target.value)} value={task.status} className="group-hover:ring ring-zinc-100 dark:ring-zinc-800 outline-none px-2 pr-4 py-1 rounded text-sm text-zinc-900 dark:text-zinc-200 cursor-pointer bg-transparent dark:bg-zinc-900" >
+                                                        <option value="TODO" className="bg-white dark:bg-zinc-900">To Do</option>
+                                                        <option value="IN_PROGRESS" className="bg-white dark:bg-zinc-900">In Progress</option>
+                                                        <option value="DONE" className="bg-white dark:bg-zinc-900">Done</option>
                                                     </select>
                                                 </td>
                                                 <td className="px-4 py-2">
@@ -250,9 +271,9 @@ const ProjectTasks = ({ tasks }) => {
                                         <div>
                                             <label className="text-zinc-600 dark:text-zinc-400 text-xs">Status</label>
                                             <select name="status" onChange={(e) => handleStatusChange(task.id, e.target.value)} value={task.status} className="w-full mt-1 bg-zinc-100 dark:bg-zinc-800 ring-1 ring-zinc-300 dark:ring-zinc-700 outline-none px-2 py-1 rounded text-sm text-zinc-900 dark:text-zinc-200" >
-                                                <option value="TODO">To Do</option>
-                                                <option value="IN_PROGRESS">In Progress</option>
-                                                <option value="DONE">Done</option>
+                                                <option value="TODO" className="bg-white dark:bg-zinc-800">To Do</option>
+                                                <option value="IN_PROGRESS" className="bg-white dark:bg-zinc-800">In Progress</option>
+                                                <option value="DONE" className="bg-white dark:bg-zinc-800">Done</option>
                                             </select>
                                         </div>
 

@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
-import { UsersIcon, Search, UserPlus, Shield, Activity } from "lucide-react";
+import { UsersIcon, Search, UserPlus, Shield, Activity, BarChart3, X } from "lucide-react";
 import InviteMemberDialog from "../components/InviteMemberDialog";
 import { useSelector } from "react-redux";
+import { useDispatch } from "react-redux";
+import { useAuth, useUser } from "@clerk/clerk-react";
+import { fetchWorkspaces } from "../features/workspaceSlice";
+import { RotateCcw } from "lucide-react";
+import api from "../configs/api";
 
 const Team = () => {
 
@@ -9,8 +14,34 @@ const Team = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [users, setUsers] = useState([]);
+    const [selectedEmployee, setSelectedEmployee] = useState(null);
+    const [performanceData, setPerformanceData] = useState(null);
+    const [loadingPerformance, setLoadingPerformance] = useState(false);
+    
     const currentWorkspace = useSelector((state) => state?.workspace?.currentWorkspace || null);
     const projects = currentWorkspace?.projects || [];
+    const dispatch = useDispatch();
+    const { getToken } = useAuth();
+    const { user: currentUser } = useUser();
+
+    const isAdmin = currentWorkspace?.members?.find(m => m.userId === currentUser?.id)?.role === "ADMIN" || currentWorkspace?.ownerId === currentUser?.id;
+
+    const fetchPerformance = async (employeeId) => {
+        setLoadingPerformance(true);
+        setSelectedEmployee(employeeId);
+        try {
+            const token = await getToken();
+            const response = await api.get(`/api/users/performance/${employeeId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setPerformanceData(response.data);
+        } catch (error) {
+            console.error("Error fetching performance:", error);
+            toast.error(error.response?.data?.message || "Failed to fetch performance");
+        } finally {
+            setLoadingPerformance(false);
+        }
+    };
 
     const filteredUsers = users.filter(
         (user) =>
@@ -33,9 +64,14 @@ const Team = () => {
                         Manage team members and their contributions
                     </p>
                 </div>
+                <div className="flex items-center gap-2">
+                <button onClick={async () => { await dispatch(fetchWorkspaces({ getToken })); }} className="flex items-center px-3 py-2 rounded text-sm border border-gray-300 dark:border-zinc-700 hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-800 dark:text-white transition" >
+                    <RotateCcw className="w-4 h-4 mr-2" /> Refresh
+                </button>
                 <button onClick={() => setIsDialogOpen(true)} className="flex items-center px-5 py-2 rounded text-sm bg-gradient-to-br from-blue-500 to-blue-600 hover:opacity-90 text-white transition" >
                     <UserPlus className="w-4 h-4 mr-2" /> Invite Member
                 </button>
+                </div>
                 <InviteMemberDialog isDialogOpen={isDialogOpen} setIsDialogOpen={setIsDialogOpen} />
             </div>
 
@@ -123,6 +159,11 @@ const Team = () => {
                                         <th className="px-6 py-2.5 text-left font-medium text-sm">
                                             Role
                                         </th>
+                                        {isAdmin && (
+                                            <th className="px-6 py-2.5 text-left font-medium text-sm">
+                                                Performance
+                                            </th>
+                                        )}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-200 dark:divide-zinc-800">
@@ -154,6 +195,17 @@ const Team = () => {
                                                     {user.role || "User"}
                                                 </span>
                                             </td>
+                                            {isAdmin && (
+                                                <td className="px-6 py-2.5 whitespace-nowrap">
+                                                    <button 
+                                                        onClick={() => fetchPerformance(user.userId)}
+                                                        className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-zinc-800 text-blue-500 transition-colors"
+                                                        title="View Performance"
+                                                    >
+                                                        <BarChart3 size={16} />
+                                                    </button>
+                                                </td>
+                                            )}
                                         </tr>
                                     ))}
                                 </tbody>
@@ -199,6 +251,97 @@ const Team = () => {
                 )}
             </div>
 
+            {/* Performance Modal */}
+            {selectedEmployee && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-200 dark:border-zinc-800 overflow-hidden">
+                        <div className="p-6">
+                            <div className="flex justify-between items-start mb-6">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Employee Performance</h2>
+                                    <p className="text-gray-500 dark:text-zinc-400">Detailed productivity analytics</p>
+                                </div>
+                                <button 
+                                    onClick={() => { setSelectedEmployee(null); setPerformanceData(null); }}
+                                    className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full transition-colors"
+                                >
+                                    <X size={20} className="text-gray-500" />
+                                </button>
+                            </div>
+
+                            {loadingPerformance ? (
+                                <div className="py-20 flex justify-center">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                                </div>
+                            ) : performanceData ? (
+                                <div className="space-y-8">
+                                    {/* Score Card */}
+                                    <div className="flex items-center gap-6 p-6 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-900/20">
+                                        <div className="relative size-24 flex items-center justify-center">
+                                            <svg className="size-full" viewBox="0 0 36 36">
+                                                <path
+                                                    className="text-gray-200 dark:text-zinc-800"
+                                                    strokeDasharray="100, 100"
+                                                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                                    fill="none" strokeWidth="3"
+                                                />
+                                                <path
+                                                    className="text-blue-500"
+                                                    strokeDasharray={`${performanceData.analytics.score}, 100`}
+                                                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                                    fill="none" strokeWidth="3" strokeLinecap="round"
+                                                />
+                                            </svg>
+                                            <span className="absolute text-2xl font-bold text-blue-600 dark:text-blue-400">
+                                                {performanceData.analytics.score}%
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xl font-bold text-gray-900 dark:text-white">{performanceData.employee.name}</h3>
+                                            <p className="text-gray-600 dark:text-zinc-400">Performance Index</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Stats Grid */}
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-100 dark:border-zinc-800">
+                                            <p className="text-sm text-gray-500 dark:text-zinc-500 mb-1">Completed</p>
+                                            <p className="text-2xl font-bold text-gray-900 dark:text-white">{performanceData.analytics.completedTasks}</p>
+                                        </div>
+                                        <div className="p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-100 dark:border-zinc-800">
+                                            <p className="text-sm text-gray-500 dark:text-zinc-500 mb-1">Reopened</p>
+                                            <p className="text-2xl font-bold text-red-500">{performanceData.analytics.reopenedCount}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Time Analytics */}
+                                    <div className="space-y-3">
+                                        <h4 className="font-semibold text-gray-900 dark:text-white">Timeliness</h4>
+                                        <div className="flex gap-4 items-center">
+                                            <div className="flex-1 h-3 bg-gray-100 dark:bg-zinc-800 rounded-full overflow-hidden flex">
+                                                <div 
+                                                    className="h-full bg-emerald-500" 
+                                                    style={{ width: `${(performanceData.analytics.onTime / performanceData.analytics.completedTasks) * 100 || 0}%` }}
+                                                />
+                                                <div 
+                                                    className="h-full bg-orange-500" 
+                                                    style={{ width: `${(performanceData.analytics.late / performanceData.analytics.completedTasks) * 100 || 0}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-emerald-600 dark:text-emerald-400 font-medium">On-Time: {performanceData.analytics.onTime}</span>
+                                            <span className="text-orange-600 dark:text-orange-400 font-medium">Late: {performanceData.analytics.late}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="py-12 text-center text-gray-500">No data available.</div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </div>
     );

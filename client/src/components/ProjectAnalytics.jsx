@@ -41,7 +41,7 @@ const ProjectAnalytics = ({ project, tasks }) => {
         return {
             stats,
             statusData: Object.entries(statusMap).map(([k, v]) => ({ name: k.replace("_", " "), value: v })),
-            typeData: Object.entries(typeMap).filter(([_, v]) => v > 0).map(([k, v]) => ({ name: k, value: v })),
+            typeData: Object.entries(typeMap).filter(([, v]) => v > 0).map(([k, v]) => ({ name: k, value: v })),
             priorityData: Object.entries(priorityMap).map(([k, v]) => ({
                 name: k,
                 value: v,
@@ -115,8 +115,9 @@ const ProjectAnalytics = ({ project, tasks }) => {
                                 tick={{ fill: "#52525b", fontSize: 12 }}
                                 axisLine={{ stroke: "#d4d4d8" }}
                                 dark={{ stroke: "#27272a" }}
+                                allowDecimals={false}
                             />
-                            <YAxis tick={{ fill: "#52525b", fontSize: 12 }} axisLine={{ stroke: "#d4d4d8" }} />
+                            <YAxis tick={{ fill: "#52525b", fontSize: 12 }} axisLine={{ stroke: "#d4d4d8" }} allowDecimals={false} />
                             <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                         </BarChart>
                     </ResponsiveContainer>

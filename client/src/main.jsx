@@ -9,7 +9,7 @@ import {ClerkProvider} from '@clerk/clerk-react'
 const PUBLISHABLE_KEY=import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 if(!PUBLISHABLE_KEY)
 {
-    throw new error("missing publishable key")
+    throw new Error("missing publishable key")
 }
 
 
