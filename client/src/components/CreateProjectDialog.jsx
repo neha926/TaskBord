@@ -1,10 +1,35 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { XIcon } from "lucide-react";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import toast from "react-hot-toast";
+import api from "../configs/api";
+import { useAuth, useUser } from "@clerk/clerk-react";
+import { addProject } from "../features/workspaceSlice.js";
 
 const CreateProjectDialog = ({ isDialogOpen, setIsDialogOpen }) => {
+    
+    const{getToken}=useAuth()
+    const { user: currentUser } = useUser();
+
+    const dispatch=useDispatch()
 
     const { currentWorkspace } = useSelector((state) => state.workspace);
+
+    // Hierarchy Filter: Only show members who are NOT Admins if current user is not an Admin
+    const eligibleLeads = useMemo(() => {
+        if (!currentWorkspace) return [];
+        
+        const currentUserWorkspaceMember = currentWorkspace.members.find(m => m.userId === currentUser?.id);
+        const isCurrentUserAdmin = currentUserWorkspaceMember?.role === "ADMIN" || currentWorkspace.ownerId === currentUser?.id;
+
+        if (isCurrentUserAdmin) return currentWorkspace.members;
+
+        // If not Admin, filter out Admins from the lead list
+        return currentWorkspace.members.filter(member => {
+            const isMemberAdmin = member.role === "ADMIN" || currentWorkspace.ownerId === member.userId;
+            return !isMemberAdmin;
+        });
+    }, [currentWorkspace, currentUser]);
 
     const [formData, setFormData] = useState({
         name: "",
@@ -20,8 +45,30 @@ const CreateProjectDialog = ({ isDialogOpen, setIsDialogOpen }) => {
 
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+
     const handleSubmit = async (e) => {
         e.preventDefault();
+        try {
+            if(!formData.team_lead){
+                return toast.error("Please select a team lead")
+            }
+            setIsSubmitting(true)
+
+            
+            const {data} = await api.post("/api/projects",{workspaceId:currentWorkspace.id, ...formData}, {
+                headers: { Authorization: `Bearer ${await getToken()}` }
+            });
+
+            dispatch(addProject(data.project))
+            toast.success(data.message);
+            setIsDialogOpen(false);            
+        } catch (error) {
+            toast.error(error?.response?.data?.message || error.message)
+            
+        }
+        finally{
+            setIsSubmitting(false)
+        }
         
     };
 
@@ -63,20 +110,20 @@ const CreateProjectDialog = ({ isDialogOpen, setIsDialogOpen }) => {
                         <div>
                             <label className="block text-sm mb-1">Status</label>
                             <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className="w-full px-3 py-2 rounded dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 mt-1 text-zinc-900 dark:text-zinc-200 text-sm" >
-                                <option value="PLANNING">Planning</option>
-                                <option value="ACTIVE">Active</option>
-                                <option value="COMPLETED">Completed</option>
-                                <option value="ON_HOLD">On Hold</option>
-                                <option value="CANCELLED">Cancelled</option>
+                                <option value="PLANNING" className="bg-white dark:bg-zinc-900">Planning</option>
+                                <option value="ACTIVE" className="bg-white dark:bg-zinc-900">Active</option>
+                                <option value="COMPLETED" className="bg-white dark:bg-zinc-900">Completed</option>
+                                <option value="ON_HOLD" className="bg-white dark:bg-zinc-900">On Hold</option>
+                                <option value="CANCELLED" className="bg-white dark:bg-zinc-900">Cancelled</option>
                             </select>
                         </div>
 
                         <div>
                             <label className="block text-sm mb-1">Priority</label>
                             <select value={formData.priority} onChange={(e) => setFormData({ ...formData, priority: e.target.value })} className="w-full px-3 py-2 rounded dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 mt-1 text-zinc-900 dark:text-zinc-200 text-sm" >
-                                <option value="LOW">Low</option>
-                                <option value="MEDIUM">Medium</option>
-                                <option value="HIGH">High</option>
+                                <option value="LOW" className="bg-white dark:bg-zinc-900">Low</option>
+                                <option value="MEDIUM" className="bg-white dark:bg-zinc-900">Medium</option>
+                                <option value="HIGH" className="bg-white dark:bg-zinc-900">High</option>
                             </select>
                         </div>
                     </div>
@@ -97,9 +144,9 @@ const CreateProjectDialog = ({ isDialogOpen, setIsDialogOpen }) => {
                     <div>
                         <label className="block text-sm mb-1">Project Lead</label>
                         <select value={formData.team_lead} onChange={(e) => setFormData({ ...formData, team_lead: e.target.value, team_members: e.target.value ? [...new Set([...formData.team_members, e.target.value])] : formData.team_members, })} className="w-full px-3 py-2 rounded dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 mt-1 text-zinc-900 dark:text-zinc-200 text-sm" >
-                            <option value="">No lead</option>
-                            {currentWorkspace?.members?.map((member) => (
-                                <option key={member.user.email} value={member.user.email}>
+                            <option value="" className="bg-white dark:bg-zinc-900">No lead</option>
+                            {eligibleLeads.map((member) => (
+                                <option key={member.user.email} value={member.user.email} className="bg-white dark:bg-zinc-900">
                                     {member.user.email}
                                 </option>
                             ))}
@@ -116,11 +163,11 @@ const CreateProjectDialog = ({ isDialogOpen, setIsDialogOpen }) => {
                                 }
                             }}
                         >
-                            <option value="">Add team members</option>
-                            {currentWorkspace?.members
-                                ?.filter((email) => !formData.team_members.includes(email))
+                            <option value="" className="bg-white dark:bg-zinc-900">Add team members</option>
+                            {eligibleLeads
+                                ?.filter((member) => !formData.team_members.includes(member.user.email))
                                 .map((member) => (
-                                    <option key={member.user.email} value={member.email}>
+                                    <option key={member.user.email} value={member.user.email} className="bg-white dark:bg-zinc-900">
                                         {member.user.email}
                                     </option>
                                 ))}

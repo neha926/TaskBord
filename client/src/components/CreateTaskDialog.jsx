@@ -1,26 +1,116 @@
-import { useState } from "react";
-import { Calendar as CalendarIcon } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { Calendar as CalendarIcon, Sparkles } from "lucide-react";
 import { useSelector } from "react-redux";
 import { format } from "date-fns";
+import { useDispatch } from "react-redux";
+import { useAuth, useUser } from "@clerk/clerk-react";
+import toast from "react-hot-toast";
+import { fetchWorkspaces } from "../features/workspaceSlice";
+import api from "../configs/api";
+import { addTask } from "../features/workspaceSlice";
 
 export default function CreateTaskDialog({ showCreateTask, setShowCreateTask, projectId }) {
+
+    const { getToken } = useAuth();
+    const { user: currentUser } = useUser();
+    const dispatch = useDispatch();
+
     const currentWorkspace = useSelector((state) => state.workspace?.currentWorkspace || null);
     const project = currentWorkspace?.projects.find((p) => p.id === projectId);
-    const teamMembers = project?.members || [];
+    
+    // Hierarchy Filter: Only show members who are NOT Admins if current user is not an Admin
+    const teamMembers = useMemo(() => {
+        if (!project || !currentWorkspace) return [];
+        
+        const currentUserWorkspaceMember = currentWorkspace.members.find(m => m.userId === currentUser?.id);
+        const isCurrentUserAdmin = currentUserWorkspaceMember?.role === "ADMIN" || currentWorkspace.ownerId === currentUser?.id;
 
-    const [isSubmitting, setIsSubmitting] = useState(false);
+        if (isCurrentUserAdmin) return project.members;
+
+        // If not Admin, filter out Admins from the assignee list
+        return project.members.filter(member => {
+            const workspaceMember = currentWorkspace.members.find(m => m.userId === member.user.id);
+            const isMemberAdmin = workspaceMember?.role === "ADMIN" || currentWorkspace.ownerId === member.user.id;
+            return !isMemberAdmin;
+        });
+    }, [project, currentWorkspace, currentUser]);
+
+    const [isSubmitting, _setIsSubmitting] = useState(false);
+    const [isSuggesting, setIsSuggesting] = useState(false);
     const [formData, setFormData] = useState({
         title: "",
         description: "",
         type: "TASK",
         status: "TODO",
         priority: "MEDIUM",
+        difficulty: "MEDIUM",
         assigneeId: "",
         due_date: "",
     });
 
+    // Auto-suggest complexity when title/description changes (with debounce)
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (formData.title.length >= 3) {
+                handleSuggestComplexity();
+            }
+        }, 1000);
+        return () => clearTimeout(timer);
+    }, [formData.title]);
+
+    const handleSuggestComplexity = async () => {
+        if (!formData.title) return;
+        setIsSuggesting(true);
+        try {
+            const token = await getToken();
+            const { data } = await api.post('/api/ai/suggest-complexity', {
+                title: formData.title,
+                description: formData.description
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (data.difficulty) {
+                if (data.isFallback) {
+                    console.warn("AI Fallback triggered:", data.error);
+                    // No toast here to avoid annoying the user during typing
+                } else {
+                    console.log("AI Suggested Complexity:", data.difficulty, "Raw:", data.raw);
+                }
+                setFormData(prev => ({ ...prev, difficulty: data.difficulty }));
+            }
+        } catch (error) {
+            console.error("Complexity suggestion failed:", error);
+        } finally {
+            setIsSuggesting(false);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
+        _setIsSubmitting(true);
+        // toast.loading("Creating task ...");
+        
+        try {
+            const {data}=await api.post(`/api/tasks`,{...formData,workspaceId:currentWorkspace.id,projectId},{headers:{Authorization:`Bearer ${await getToken()}`}});
+            setShowCreateTask(false);
+            setFormData({
+                title: "",
+                description: "",
+                type: "TASK",
+                status: "TODO",
+                priority: "MEDIUM",
+                difficulty: "MEDIUM",
+                assigneeId: "",
+                due_date: "",
+            })
+            toast.success(data.message);
+            dispatch(addTask(data.task));
+        } catch (error) {
+            toast.error(error.response?.data?.message || error.message || "An error occurred while saving.");
+        }
+        finally {
+            _setIsSubmitting(false);
+        }
 
 
     };
@@ -48,22 +138,42 @@ export default function CreateTaskDialog({ showCreateTask, setShowCreateTask, pr
                         <div className="space-y-1">
                             <label className="text-sm font-medium">Type</label>
                             <select value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value })} className="w-full rounded dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-zinc-900 dark:text-zinc-200 text-sm mt-1" >
-                                <option value="BUG">Bug</option>
-                                <option value="FEATURE">Feature</option>
-                                <option value="TASK">Task</option>
-                                <option value="IMPROVEMENT">Improvement</option>
-                                <option value="OTHER">Other</option>
+                                <option value="BUG" className="bg-white dark:bg-zinc-900">Bug</option>
+                                <option value="FEATURE" className="bg-white dark:bg-zinc-900">Feature</option>
+                                <option value="TASK" className="bg-white dark:bg-zinc-900">Task</option>
+                                <option value="IMPROVEMENT" className="bg-white dark:bg-zinc-900">Improvement</option>
+                                <option value="OTHER" className="bg-white dark:bg-zinc-900">Other</option>
                             </select>
                         </div>
 
                         <div className="space-y-1">
                             <label className="text-sm font-medium">Priority</label>
                             <select value={formData.priority} onChange={(e) => setFormData({ ...formData, priority: e.target.value })} className="w-full rounded dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-zinc-900 dark:text-zinc-200 text-sm mt-1"                             >
-                                <option value="LOW">Low</option>
-                                <option value="MEDIUM">Medium</option>
-                                <option value="HIGH">High</option>
+                                <option value="LOW" className="bg-white dark:bg-zinc-900">Low</option>
+                                <option value="MEDIUM" className="bg-white dark:bg-zinc-900">Medium</option>
+                                <option value="HIGH" className="bg-white dark:bg-zinc-900">High</option>
                             </select>
                         </div>
+                    </div>
+
+                    {/* Complexity/Difficulty */}
+                    <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                            <label className="text-sm font-medium">Difficulty (Complexity)</label>
+                            {isSuggesting && (
+                                <span className="text-[10px] text-blue-500 flex items-center gap-1 animate-pulse">
+                                    <Sparkles className="size-3" /> AI Estimating...
+                                </span>
+                            )}
+                        </div>
+                        <select value={formData.difficulty} onChange={(e) => setFormData({ ...formData, difficulty: e.target.value })} className="w-full rounded dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-zinc-900 dark:text-zinc-200 text-sm mt-1" >
+                            <option value="EASY" className="bg-white dark:bg-zinc-900">Easy (Minor fixes, small changes)</option>
+                            <option value="MEDIUM" className="bg-white dark:bg-zinc-900">Medium (New features, API work)</option>
+                            <option value="HARD" className="bg-white dark:bg-zinc-900">Hard (Architecture, migrations, high logic)</option>
+                        </select>
+                        <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1 italic">
+                            Tip: AI automatically suggests difficulty based on your title.
+                        </p>
                     </div>
 
                     {/* Assignee and Status */}
@@ -71,9 +181,9 @@ export default function CreateTaskDialog({ showCreateTask, setShowCreateTask, pr
                         <div className="space-y-1">
                             <label className="text-sm font-medium">Assignee</label>
                             <select value={formData.assigneeId} onChange={(e) => setFormData({ ...formData, assigneeId: e.target.value })} className="w-full rounded dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-zinc-900 dark:text-zinc-200 text-sm mt-1" >
-                                <option value="">Unassigned</option>
+                                <option value="" className="bg-white dark:bg-zinc-900">Unassigned</option>
                                 {teamMembers.map((member) => (
-                                    <option key={member?.user.id} value={member?.user.id}>
+                                    <option key={member?.user.id} value={member?.user.id} className="bg-white dark:bg-zinc-900">
                                         {member?.user.email}
                                     </option>
                                 ))}
@@ -83,9 +193,9 @@ export default function CreateTaskDialog({ showCreateTask, setShowCreateTask, pr
                         <div className="space-y-1">
                             <label className="text-sm font-medium">Status</label>
                             <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className="w-full rounded dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-zinc-900 dark:text-zinc-200 text-sm mt-1" >
-                                <option value="TODO">To Do</option>
-                                <option value="IN_PROGRESS">In Progress</option>
-                                <option value="DONE">Done</option>
+                                <option value="TODO" className="bg-white dark:bg-zinc-900">To Do</option>
+                                <option value="IN_PROGRESS" className="bg-white dark:bg-zinc-900">In Progress</option>
+                                <option value="DONE" className="bg-white dark:bg-zinc-900">Done</option>
                             </select>
                         </div>
                     </div>

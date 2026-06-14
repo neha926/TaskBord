@@ -29,11 +29,11 @@ const ProjectOverview = () => {
     }, [currentWorkspace]);
 
     return currentWorkspace && (
-        <div className="bg-white dark:bg-zinc-950 dark:bg-gradient-to-br dark:from-zinc-800/70 dark:to-zinc-900/50 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all duration-200 rounded-lg overflow-hidden">
-            <div className="border-b border-zinc-200 dark:border-zinc-800 p-4 flex items-center justify-between">
-                <h2 className="text-md text-zinc-800 dark:text-zinc-300">Project Overview</h2>
-                <Link to={'/projects'} className="text-sm text-zinc-600 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300 flex items-center">
-                    View all <ArrowRight className="w-4 h-4 ml-2" />
+        <div className="bg-white dark:bg-zinc-950 dark:bg-gradient-to-br dark:from-zinc-800/70 dark:to-zinc-900/50 border border-purple-200 dark:border-purple-500/20 hover:border-purple-400 dark:hover:border-purple-400/60 transition-all duration-300 rounded-xl overflow-hidden shadow-sm hover:shadow-xl hover:shadow-purple-500/5" >
+            <div className="border-b border-zinc-200 dark:border-zinc-800 p-5 flex items-center justify-between bg-zinc-50/30 dark:bg-zinc-900/20" >
+                <h2 className="text-base font-semibold text-zinc-800 dark:text-zinc-200">Project Overview</h2>
+                <Link to={'/projects'} className="text-xs font-semibold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 flex items-center transition-colors px-3 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 border border-transparent hover:border-purple-200 dark:hover:border-purple-500/30" >
+                    View all <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
                 </Link>
             </div>
 

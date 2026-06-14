@@ -1,9 +1,9 @@
-import { SearchIcon, PanelLeft } from 'lucide-react'
+import { SearchIcon, PanelLeft, UserCircle } from 'lucide-react'
 import { useDispatch, useSelector } from 'react-redux'
 import { toggleTheme } from '../features/themeSlice'
 import { MoonIcon, SunIcon } from 'lucide-react'
-import { assets } from '../assets/assets'
 import { UserButton } from '@clerk/clerk-react'
+import { Link } from 'react-router-dom'
 
 const Navbar = ({ setIsSidebarOpen }) => {
 
@@ -33,6 +33,11 @@ const Navbar = ({ setIsSidebarOpen }) => {
 
                 {/* Right section */}
                 <div className="flex items-center gap-3">
+
+                    {/* Profile Link */}
+                    <Link to="/profile" className="size-8 flex items-center justify-center bg-white dark:bg-zinc-800 shadow rounded-lg transition hover:scale-105 active:scale-95 text-gray-800 dark:text-gray-200">
+                        <UserCircle className="size-5" />
+                    </Link>
 
                     {/* Theme Toggle */}
                     <button onClick={() => dispatch(toggleTheme())} className="size-8 flex items-center justify-center bg-white dark:bg-zinc-800 shadow rounded-lg transition hover:scale-105 active:scale-95">

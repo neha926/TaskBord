@@ -1,8 +1,14 @@
 import { useState } from "react";
 import { Mail, UserPlus } from "lucide-react";
 import { useSelector } from "react-redux";
+import { useOrganization, useAuth } from "@clerk/clerk-react";
+import toast from "react-hot-toast";
+import api from "../configs/api";
 
 const InviteMemberDialog = ({ isDialogOpen, setIsDialogOpen }) => {
+
+    const { organization } = useOrganization();
+    const { getToken } = useAuth();
 
     const currentWorkspace = useSelector((state) => state.workspace?.currentWorkspace || null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -13,7 +19,29 @@ const InviteMemberDialog = ({ isDialogOpen, setIsDialogOpen }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
+        
+        setIsSubmitting(true);
+        try {
+            const token = await getToken();
+            await api.post('/api/workspaces/add-member', {
+                email: formData.email,
+                role: formData.role === "org:admin" ? "ADMIN" : "MEMBER",
+                workspaceId: currentWorkspace.id
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            toast.success("Invitation sent successfully");
+            
+            setIsDialogOpen(false);
+            setFormData({ email: "", role: "org:member" });
+        } catch (error) {
+            console.error("Invitation error:", error);
+            const msg = error?.errors?.[0]?.message || error?.response?.data?.message || error.message || "Invitation failed";
+            toast.error(msg);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     if (!isDialogOpen) return null;
@@ -50,19 +78,21 @@ const InviteMemberDialog = ({ isDialogOpen, setIsDialogOpen }) => {
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-zinc-900 dark:text-zinc-200">Role</label>
                         <select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })} className="w-full rounded border border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-200 py-2 px-3 mt-1 focus:outline-none focus:border-blue-500 text-sm" >
-                            <option value="org:member">Member</option>
-                            <option value="org:admin">Admin</option>
+                            <option value="org:member" className="bg-white dark:bg-zinc-900">Member</option>
+                            <option value="org:admin" className="bg-white dark:bg-zinc-900">Admin</option>
                         </select>
                     </div>
 
                     {/* Footer */}
-                    <div className="flex justify-end gap-3 pt-2">
-                        <button type="button" onClick={() => setIsDialogOpen(false)} className="px-5 py-2 rounded text-sm border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition" >
-                            Cancel
-                        </button>
-                        <button type="submit" disabled={isSubmitting || !currentWorkspace} className="px-5 py-2 rounded text-sm bg-gradient-to-br from-blue-500 to-blue-600 text-white disabled:opacity-50 hover:opacity-90 transition" >
-                            {isSubmitting ? "Sending..." : "Send Invitation"}
-                        </button>
+                    <div className="flex flex-col gap-2 pt-2">
+                        <div className="flex justify-end gap-3">
+                            <button type="button" onClick={() => setIsDialogOpen(false)} className="px-5 py-2 rounded text-sm border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition" >
+                                Cancel
+                            </button>
+                            <button type="submit" disabled={isSubmitting || !currentWorkspace || !formData.email} className="px-5 py-2 rounded text-sm bg-gradient-to-br from-blue-500 to-blue-600 text-white disabled:opacity-50 hover:opacity-90 transition" >
+                                {isSubmitting ? "Sending..." : "Send Invitation"}
+                            </button>
+                        </div>
                     </div>
                 </form>
             </div>

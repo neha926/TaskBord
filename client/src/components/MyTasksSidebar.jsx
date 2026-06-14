@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { CheckSquareIcon, ChevronDownIcon, ChevronRightIcon } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
+import { useUser } from '@clerk/clerk-react';
 
 function MyTasksSidebar() {
 
-    const user = { id: 'user_1' }
+    const {user} = useUser();
 
     const { currentWorkspace } = useSelector((state) => state.workspace);
     const [showMyTasks, setShowMyTasks] = useState(false);
@@ -42,18 +43,19 @@ function MyTasksSidebar() {
 
     return (
         <div className="mt-6 px-3">
-            <div onClick={toggleMyTasks} className="flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800" >
+            <div onClick={toggleMyTasks} className="flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer group" >
                 <div className="flex items-center gap-2">
-                    <CheckSquareIcon className="w-4 h-4 text-gray-500 dark:text-zinc-400" />
-                    <h3 className="text-sm font-medium text-gray-700 dark:text-zinc-300">My Tasks</h3>
-                    <span className="bg-gray-200 dark:bg-zinc-700 text-gray-700 dark:text-zinc-300 text-xs px-2 py-0.5 rounded">
+                    <h3 className="text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">
+                        My Tasks
+                    </h3>
+                    <span className="bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-zinc-400 text-[10px] px-1.5 py-0.5 rounded font-bold">
                         {myTasks.length}
                     </span>
                 </div>
                 {showMyTasks ? (
-                    <ChevronDownIcon className="w-4 h-4 text-gray-500 dark:text-zinc-400" />
+                    <ChevronDownIcon className="w-3 h-3 text-gray-400 group-hover:text-gray-600 transition-colors" />
                 ) : (
-                    <ChevronRightIcon className="w-4 h-4 text-gray-500 dark:text-zinc-400" />
+                    <ChevronRightIcon className="w-3 h-3 text-gray-400 group-hover:text-gray-600 transition-colors" />
                 )}
             </div>
 
